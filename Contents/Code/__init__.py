@@ -1,8 +1,10 @@
-import re, time
+import re, time, random
 
 NAME = 'YouJizz'
-ART = 'art-default.jpg'
+randomArt = random.randint(1,3)
+ART = 'artwork-'+str(randomArt)+'.jpg'
 ICON = 'icon-default.png'
+ICON_PREFS  = 'icon-prefs.png'
 
 YJ_BASE = 'http://www.youjizz.com'
 YJ_POPULAR = 'http://www.youjizz.com/most-popular/%s.html'
@@ -28,16 +30,17 @@ def Start():
 	DirectoryItem.thumb = R(ICON)
 	VideoItem.thumb = R(ICON)
 
-	HTTP.CacheTime = 3600
+	HTTP.CacheTime = 30
 	HTTP.Headers['User-Agent'] = USER_AGENT
-
+#	setFilterCookie = Prefs['filterCookie'].lower()
+#	HTTP.Headers['Cookie'] = "filter="+setFilterCookie
 
 ####################################################################################################
 
 def Thumb(url):
 	try:
-		data = HTTP.Request(url, cacheTime=CACHE_1WEEK).content
-		return DataObject(data, 'image/jpeg')
+		data = HTTP.Request(url).content
+		return DataObject(data,'image/jpeg')
 	except:
 		return Redirect(R(ICON))
 
@@ -64,17 +67,20 @@ def GetDurationFromString(duration):
 ####################################################################################################
 
 def MainMenu():
-	dir = MediaContainer()
+	setFilterCookie = Prefs['filterCookie'].lower()
+	setFilter = HTTP.Request('http://www.youjizz.com/setFilter.php?filter='+setFilterCookie, cacheTime=0).headers
+	dir = MediaContainer(noCache=True)
 	dir.Append(Function(DirectoryItem(MovieList, L('Most Popular')), url=YJ_POPULAR))
 	dir.Append(Function(DirectoryItem(MovieList, L('Newest')), url=YJ_NEWEST))
 	dir.Append(Function(DirectoryItem(MovieList, L('Top Rated')), url=YJ_TOPRATED))
 	dir.Append(Function(DirectoryItem(MovieList, L('Random')), url=YJ_RANDOM))
 	dir.Append(Function(DirectoryItem(CategoriesMenu, L('Categories')), url=YJ_SEARCH))
 	dir.Append(Function(InputDirectoryItem(Search, L('Search'), L('Search'), thumb=R(ICON)), url=YJ_SEARCH))
+	dir.Append(PrefsItem(title="Preferences", thumb=R(ICON_PREFS)))
 	return dir
 
 def CategoriesMenu(sender,url):
-	dir = MediaContainer(title2 = sender.itemTitle)
+	dir = MediaContainer(title2 = sender.itemTitle, noCache=True)
 	keywords = ['amateur','anal','asian','bbw','big-butt','big-tits','bisexual','blonde','blowjob','brunette','coed','compilation','couples','creampie','cumshots','cunnilingus','dildos','dp','ebony','european','facial','fantasy','fetish','fingering','funny','gay','german','gonzo','group','hairy','handjob','hentai','instructional','interracial','interview','kissing','latina','lesbian','masturbate','mature','milf','old','panties','pantyhose','pov','public','redhead','rimming','romantic','shaved','shemale','solo-girl','solo-male','squirting','strt-sex','swallow','teen','threesome','toys','vintage','voyeur','webcam','young']
 	for x in keywords:
 		xCapitalized = x.capitalize()
@@ -83,13 +89,13 @@ def CategoriesMenu(sender,url):
 
 def MovieList(sender,url,page=1):
 	if url == YJ_POPULAR:
-		dir = MediaContainer(title2 = 'Most Popular - Page: '+str(page))
+		dir = MediaContainer(title2 = 'Most Popular - Page: '+str(page), replaceParent=(page>1), noCache=True)
 	elif url == YJ_NEWEST:
-		dir = MediaContainer(title2 = 'Newest - Page: '+str(page))
+		dir = MediaContainer(title2 = 'Newest - Page: '+str(page), replaceParent=(page>1), noCache=True)
 	elif url == YJ_TOPRATED:
-		dir = MediaContainer(title2 = 'Top Rated - Page: '+str(page))
+		dir = MediaContainer(title2 = 'Top Rated - Page: '+str(page), replaceParent=(page>1), noCache=True)
 	else:
-		dir = MediaContainer(title2 = sender.itemTitle+' - Page: '+str(page))
+		dir = MediaContainer(title2 = sender.itemTitle+' - Page: '+str(page), replaceParent=(page>1), noCache=True)
 	if page > 1:
 		pagem = page-1
 		dir.Append(Function(DirectoryItem(MovieList, L('+++Previous Page ('+str(pagem)+')+++')), url=url, page=pagem))
@@ -97,6 +103,10 @@ def MovieList(sender,url,page=1):
 		pageContent = HTML.ElementFromURL(url, cacheTime=0)
 	else:
 		pageContent = HTML.ElementFromURL(url % str(page))
+#	if len(pageContent.xpath('//div[@id="login"]/span[@style="float:right;padding-right:20px;"]/a[@style="color: red;"]')) == 1:
+#		usedCookie = pageContent.xpath('//div[@id="login"]/span[@style="float:right;padding-right:20px;"]/a[@style="color: red;"]')[0].text.strip()
+#		Log('filterCookie: '+Prefs['filterCookie']+' | usedCookie: '+usedCookie)
+#	Log('randomArt: '+str(randomArt)+' | ART: '+ART)
 	for videoItem in pageContent.xpath('//span[@id="miniatura"]'):
 		videoItemTitle = videoItem.xpath('span[@id="title1"]')[-1].text.strip()
 		videoItemLink  = YJ_BASE + videoItem.xpath("span/a")[0].get('href')
@@ -115,12 +125,12 @@ def MovieList(sender,url,page=1):
 	return dir
 
 def SearchMovieList(sender,url,SearchQuery='anal',SearchType='categories',page=1):
-	SearchQueryCapitalized = SearchQuery.capitalize()
+	SearchQueryCapitalized = SearchQuery.replace('-',' ').capitalize()
 	SearchTypeCapitalized = SearchType.capitalize()
-	dir = MediaContainer(title2 = SearchTypeCapitalized+' - '+SearchQueryCapitalized+' - Page: '+str(page))
+	dir = MediaContainer(title2 = SearchTypeCapitalized+' - '+SearchQueryCapitalized+' - Page: '+str(page), replaceParent=(MainMenu), noCache=True)
 	if page > 1:
 		pagem = page-1
-		dir.Append(Function(DirectoryItem(SearchMovieList, L('+++Previous Page ('+str(pagem)+')+++')), url=url, page=pagem))
+		dir.Append(Function(DirectoryItem(SearchMovieList, L('+++Previous Page ('+str(pagem)+')+++')), url=url, SearchQuery=SearchQuery, page=pagem))
 	pageContent = HTML.ElementFromURL(url % (SearchQuery,str(page)))
 	for videoItem in pageContent.xpath('//span[@id="miniatura"]'):
 		videoItemTitle = videoItem.xpath('span[@id="title1"]')[-1].text.strip()
@@ -136,12 +146,12 @@ def SearchMovieList(sender,url,SearchQuery='anal',SearchType='categories',page=1
 		dir.Append(Function(VideoItem(PlayVideo, title=videoItemTitle, summary=videoItemSummary, duration=videoItemDuration, rating=videoItemRating, thumb=Function(Thumb, url=videoItemThumb)), url=videoItemLink))
 	if len(pageContent.xpath('//div[@id="pagination"]/a[contains(text(),"Next")]')) == 1:
 		pagep = page+1
-		dir.Append(Function(DirectoryItem(SearchMovieList, title='+++Next Page ('+str(pagep)+')+++'), url=url, page=pagep))
+		dir.Append(Function(DirectoryItem(SearchMovieList, title='+++Next Page ('+str(pagep)+')+++'), url=url, SearchQuery=SearchQuery, page=pagep))
 	return dir
 
 
 def Search(sender,url,query='',SearchType='search'):
-	dir = MediaContainer()
+	dir = MediaContainer(noCache=True)
 	SearchQueryCorrect = query.replace(' ','-')
 	dir = SearchMovieList(sender=None, url=url, SearchQuery=SearchQueryCorrect, SearchType=SearchType)
 	return dir
@@ -150,7 +160,6 @@ def Search(sender,url,query='',SearchType='search'):
 ####################################################################################################
 
 def PlayVideo(sender, url):
-	# we need to get the video file
 	content = HTTP.Request(url).content
 	vidurl = re.compile('so.addVariable\("file","(.+?)"\)').findall(content, re.DOTALL)
 	if len(vidurl) > 0:
