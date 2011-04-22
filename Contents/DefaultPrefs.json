@@ -1,0 +1,9 @@
+[
+	{
+		"id": "filterCookie",
+		"type": "enum",
+		"label": "Filter Content",
+		"values": ["Straight","Gay","Shemale","All"],
+		"default": "Straight" 
+	}
+]
